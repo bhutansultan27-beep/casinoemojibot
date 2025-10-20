@@ -1,17 +1,15 @@
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from telegram.constants import DiceEmoji
 
 from database import db
-from games import (
-    RouletteGame, BlackjackGame, BasketballGame, SoccerGame,
-    BowlingGame, CrashGame, DiceGame, CoinFlipGame
-)
+from games import DiceGame, CoinFlipGame
 from utils import check_achievements, get_xp_for_bet, format_number
 
 
 async def dice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced dice game with exact number betting and PvP"""
+    """Enhanced dice game with Telegram's animated dice emoji"""
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     
@@ -38,7 +36,7 @@ async def dice_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def coinflip_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Enhanced coin flip game"""
+    """Enhanced coin flip game with Telegram's animated dice emoji"""
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     
