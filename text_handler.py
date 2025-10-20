@@ -1,27 +1,25 @@
 import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.constants import DiceEmoji
 
 from database import db
 from games import DiceGame, CoinFlipGame
 from utils import check_achievements, get_xp_for_bet, format_number
-from config import JACKPOT_CONTRIBUTION, ACHIEVEMENTS
+from config import ACHIEVEMENTS
 
 
 async def handle_text_bet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle text-based betting for Antaria Casino
-    Updated for new dice/coinflip only system
+    Handle text-based betting for Antaria Casino with Telegram's animated emojis
     """
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     text = update.message.text.strip()
 
-    # Check if user is in a game state
     game_state = context.user_data.get('game_state', {})
 
     if not game_state:
-        # No active game state - provide helpful responses
         await handle_casual_text(update, text, user_data)
         return
 
@@ -41,26 +39,23 @@ async def handle_text_bet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Route to appropriate game handler
         if game_type == 'dice':
-            await handle_dice_bet(update, user_id, user_data, game_state, amount)
+            await handle_dice_bet(update, context, user_id, user_data, game_state, amount)
         elif game_type == 'coinflip':
-            await handle_coinflip_bet(update, user_id, user_data, game_state, amount)
+            await handle_coinflip_bet(update, context, user_id, user_data, game_state, amount)
         else:
-            # Unknown game type - clear state
             context.user_data['game_state'] = {}
             await update.message.reply_text("❌ Unknown game type. Try /dice or /coinflip")
             return
 
-        # Clear game state after bet
         context.user_data['game_state'] = {}
 
     except ValueError:
         await update.message.reply_text("❌ Please enter a valid number.")
 
 
-async def handle_dice_bet(update, user_id, user_data, game_state, amount):
-    """Handle dice game bet with animation"""
+async def handle_dice_bet(update, context, user_id, user_data, game_state, amount):
+    """Handle dice game bet with Telegram's animated dice emoji"""
     predicted_number = game_state.get('number')
 
     if not predicted_number or predicted_number < 1 or predicted_number > 6:
@@ -72,34 +67,31 @@ async def handle_dice_bet(update, user_id, user_data, game_state, amount):
     user_data['total_wagered'] += amount
     user_data['games_played'] += 1
 
-    # Track bonus playthrough
+    # Track for bonus system
+    user_data['wagered_since_withdrawal'] = user_data.get('wagered_since_withdrawal', 0) + amount
+
     if user_data.get('playthrough_required', 0) > 0:
         user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0) + amount
 
     db.global_stats['total_bets'] += 1
     db.global_stats['total_wagered'] += amount
 
-    # Animated dice roll
-    msg = await update.message.reply_text("🎲 Rolling the dice...")
-
-    # Animation frames
-    for i in range(5):
-        await asyncio.sleep(0.3)
-        import random
-        random_num = random.randint(1, 6)
-        await msg.edit_text(f"🎲 Rolling... {DiceGame.get_dice_emoji(random_num)}")
-
-    # Final result
-    result = DiceGame.roll()
-    result_emoji = DiceGame.get_dice_emoji(result)
-
-    await asyncio.sleep(0.5)
+    # Send Telegram's animated dice emoji
+    dice_message = await context.bot.send_dice(
+        chat_id=update.effective_chat.id,
+        emoji=DiceEmoji.DICE
+    )
+    
+    # Telegram automatically animates for ~3 seconds
+    await asyncio.sleep(4)  # Wait for animation to complete
+    
+    result = dice_message.dice.value  # Get the actual result (1-6)
 
     # Calculate win
-    payout = DiceGame.calculate_payout(predicted_number, result, amount)
-    won = payout > 0
-
+    won = result == predicted_number
+    
     if won:
+        payout = amount * 5  # 5x payout
         user_data['balance'] += amount + payout
         user_data['total_won'] += payout
         user_data['win_streak'] += 1
@@ -110,7 +102,7 @@ async def handle_dice_bet(update, user_id, user_data, game_state, amount):
 
         result_msg = (
             f"🎉 <b>YOU WIN!</b>\n\n"
-            f"🎲 Result: {result_emoji} ({result})\n"
+            f"🎲 Result: {result}\n"
             f"🎯 You predicted: {predicted_number}\n\n"
             f"💰 Bet: ${amount:.2f}\n"
             f"🏆 Won: ${payout:.2f}\n"
@@ -122,7 +114,7 @@ async def handle_dice_bet(update, user_id, user_data, game_state, amount):
 
         result_msg = (
             f"❌ <b>Better luck next time!</b>\n\n"
-            f"🎲 Result: {result_emoji} ({result})\n"
+            f"🎲 Result: {result}\n"
             f"🎯 You predicted: {predicted_number}\n\n"
             f"💰 Bet: ${amount:.2f}\n"
             f"💳 Balance: ${format_number(user_data['balance'])}"
@@ -130,7 +122,7 @@ async def handle_dice_bet(update, user_id, user_data, game_state, amount):
 
     # Add XP
     xp_gained = get_xp_for_bet(amount)
-    user_data['xp'] += xp_gained
+    user_data['xp'] = user_data.get('xp', 0) + xp_gained
 
     # Check achievements
     unlocked = check_achievements(user_id)
@@ -139,11 +131,11 @@ async def handle_dice_bet(update, user_id, user_data, game_state, amount):
             ach = ACHIEVEMENTS[ach_id]
             result_msg += f"\n\n🏆 Achievement: {ach['name']}\n+${reward}"
 
-    await msg.edit_text(result_msg, parse_mode='HTML')
+    await update.message.reply_text(result_msg, parse_mode='HTML')
 
 
-async def handle_coinflip_bet(update, user_id, user_data, game_state, amount):
-    """Handle coinflip bet with animation"""
+async def handle_coinflip_bet(update, context, user_id, user_data, game_state, amount):
+    """Handle coinflip bet with Telegram's animated dart emoji (used for coin flip)"""
     prediction = game_state.get('prediction')
 
     if prediction not in ['heads', 'tails']:
@@ -155,33 +147,34 @@ async def handle_coinflip_bet(update, user_id, user_data, game_state, amount):
     user_data['total_wagered'] += amount
     user_data['games_played'] += 1
 
-    # Track bonus playthrough
+    # Track for bonus system
+    user_data['wagered_since_withdrawal'] = user_data.get('wagered_since_withdrawal', 0) + amount
+
     if user_data.get('playthrough_required', 0) > 0:
         user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0) + amount
 
     db.global_stats['total_bets'] += 1
     db.global_stats['total_wagered'] += amount
 
-    # Animated coin flip
-    msg = await update.message.reply_text("🪙 Flipping coin...")
-
-    # Animation frames
-    frames = ["🪙", "🔄", "🪙", "🔄", "🪙", "🔄"]
-    for frame in frames:
-        await asyncio.sleep(0.4)
-        await msg.edit_text(f"{frame} Flipping...")
-
-    # Final result
-    result = CoinFlipGame.flip()
-    result_emoji = CoinFlipGame.get_coin_emoji(result)
-
-    await asyncio.sleep(0.5)
+    # Send animated dice for coin flip (we'll use dice but interpret as coin)
+    dice_message = await context.bot.send_dice(
+        chat_id=update.effective_chat.id,
+        emoji=DiceEmoji.DICE
+    )
+    
+    await asyncio.sleep(4)  # Wait for animation
+    
+    dice_value = dice_message.dice.value  # 1-6
+    # Map dice result to coin: 1-3=heads, 4-6=tails
+    result = 'heads' if dice_value <= 3 else 'tails'
+    
+    result_emoji = "🦅" if result == "heads" else "🏛️"
 
     # Calculate win
-    payout = CoinFlipGame.calculate_payout(prediction, result, amount)
-    won = payout > 0
-
+    won = result == prediction
+    
     if won:
+        payout = amount  # 2x total (1x profit)
         user_data['balance'] += amount + payout
         user_data['total_won'] += payout
         user_data['win_streak'] += 1
@@ -212,7 +205,7 @@ async def handle_coinflip_bet(update, user_id, user_data, game_state, amount):
 
     # Add XP
     xp_gained = get_xp_for_bet(amount)
-    user_data['xp'] += xp_gained
+    user_data['xp'] = user_data.get('xp', 0) + xp_gained
 
     # Check achievements
     unlocked = check_achievements(user_id)
@@ -221,34 +214,29 @@ async def handle_coinflip_bet(update, user_id, user_data, game_state, amount):
             ach = ACHIEVEMENTS[ach_id]
             result_msg += f"\n\n🏆 Achievement: {ach['name']}\n+${reward}"
 
-    await msg.edit_text(result_msg, parse_mode='HTML')
+    await update.message.reply_text(result_msg, parse_mode='HTML')
 
 
 async def handle_casual_text(update, text, user_data):
     """Handle casual text when not in game state"""
     text_lower = text.lower()
 
-    # Natural language dice betting
     if any(word in text_lower for word in ['dice', 'roll']) and any(char.isdigit() for char in text):
         await update.message.reply_text(
             "🎲 Want to play dice?\n\n"
-            "Use: /dice [amount] [number]\n"
-            "Example: /dice 10 5\n\n"
-            "Or just type /dice for the menu!"
+            "Just type /dice to get started!\n"
+            "Watch the animated dice roll!"
         )
         return
 
-    # Natural language coinflip
     if any(word in text_lower for word in ['flip', 'coin', 'heads', 'tails']):
         await update.message.reply_text(
             "🪙 Want to flip a coin?\n\n"
-            "Use: /coinflip [amount] [heads/tails]\n"
-            "Example: /coinflip 20 heads\n\n"
-            "Try it now!"
+            "Use /coinflip to start!\n"
+            "See the animated flip!"
         )
         return
 
-    # Balance inquiry
     if any(word in text_lower for word in ['balance', 'money', 'funds', 'how much']):
         await update.message.reply_text(
             f"💰 Your balance: ${format_number(user_data['balance'])}\n\n"
@@ -256,7 +244,6 @@ async def handle_casual_text(update, text, user_data):
         )
         return
 
-    # Bonus inquiry
     if any(word in text_lower for word in ['bonus', 'free', 'daily', 'claim']):
         await update.message.reply_text(
             "🎁 Claim your bonus with /bonus\n\n"
@@ -265,7 +252,6 @@ async def handle_casual_text(update, text, user_data):
         )
         return
 
-    # PvP challenge
     if any(word in text_lower for word in ['challenge', 'pvp', 'battle', 'vs']) and '@' in text:
         await update.message.reply_text(
             "⚔️ Want to challenge someone?\n\n"
@@ -274,13 +260,12 @@ async def handle_casual_text(update, text, user_data):
         )
         return
 
-    # Help request
     if any(word in text_lower for word in ['help', 'how', 'guide', 'commands']):
         await update.message.reply_text(
             "🎰 <b>Antaria Casino</b>\n\n"
             "🎮 Games:\n"
-            "/dice - Roll the dice (PvP available!)\n"
-            "/coinflip - Flip a coin\n\n"
+            "/dice - Animated dice roll (PvP available!)\n"
+            "/coinflip - Animated coin flip\n\n"
             "💰 Money:\n"
             "/balance - Check balance\n"
             "/bonus - Daily bonus\n"
@@ -290,11 +275,9 @@ async def handle_casual_text(update, text, user_data):
         )
         return
 
-    # Don't respond to every message to avoid spam
-    # Only respond occasionally
     import random
-    if random.random() < 0.15:  # 15% chance
+    if random.random() < 0.15:
         await update.message.reply_text(
             "💡 Try /dice or /coinflip to play!\n"
-            "Or /help for all commands."
+            "Watch the animated emojis! 🎲🪙"
         )
