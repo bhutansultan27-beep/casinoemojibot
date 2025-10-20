@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
 from config import BOT_TOKEN
@@ -54,6 +54,29 @@ async def start_dealer_bot(app):
     await dealer_bot.monitor_challenges(app)
 
 
+async def setup_commands(app):
+    """Setup bot commands menu"""
+    commands = [
+        BotCommand("start", "🎰 Start the bot & get welcome bonus"),
+        BotCommand("help", "❓ Show help and commands"),
+        BotCommand("balance", "💰 Check your balance"),
+        BotCommand("bonus", "🎁 Claim your daily bonus"),
+        BotCommand("deposit", "💳 Deposit funds (LTC)"),
+        BotCommand("withdraw", "💸 Withdraw your winnings"),
+        BotCommand("dice", "🎲 Play dice game (PvP available)"),
+        BotCommand("dice_challenge", "⚔️ Challenge another player"),
+        BotCommand("coinflip", "🪙 Play coin flip game"),
+        BotCommand("profile", "👤 View your profile & stats"),
+        BotCommand("achievements", "🏆 View your achievements"),
+        BotCommand("leaderboard", "📊 View top players"),
+        BotCommand("stats", "📈 View global statistics"),
+        BotCommand("referral", "👥 Get your referral link"),
+    ]
+    
+    await app.bot.set_my_commands(commands)
+    logger.info("✅ Bot commands menu set up")
+
+
 def main():
     if not BOT_TOKEN:
         print("❌ Error: BOT_TOKEN not set!")
@@ -101,11 +124,15 @@ def main():
     loop = asyncio.get_event_loop()
     loop.create_task(periodic_save(application))
     loop.create_task(start_dealer_bot(application))
+    
+    # Setup commands menu (run after bot starts)
+    loop.create_task(setup_commands(application))
 
     print("✅ Bot initialized successfully!")
     print("🎮 Available games: Dice (PvP enabled), CoinFlip")
     print("🎁 Features: Smart Bonus System, Achievements, Referrals, Leaderboard")
     print("🤖 Dealer Bot: Active")
+    print("📋 Commands menu: Enabled")
     print("=" * 50)
     print("🚀 Antaria Casino is now running...")
 
