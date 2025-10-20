@@ -5,30 +5,24 @@ Welcome to **Antaria Casino** - A Premium Gambling Expirience With New Updates A
 ## 🎮 Features
 
 ### Games
-- **🎲 Dice Game** - Choose your number (1-6) and win 5x your bet!
+- **🎲 Dice** - Roll the highest number to win (1-6)
   - Play vs Bot for instant action
   - Challenge other players for PvP battles
-  - Automated Dealer Bot accepts expired challenges
 - **🪙 CoinFlip** - Classic heads or tails with 2x payout
 
 ### Smart Bonus System
 - **First Bonus**: New players get $5 locked bonus
-  - Must play through $5 before withdrawing
+  -  The first $5 bonus MUST be played through before  being abled to withdraw
 - **Daily Bonus**: 1% of total amount wagered
   - Resets on every withdrawal
   - Encourages active gameplay
   - No spam withdrawals possible
 
 ### Social Features
-- 👥 **Referral System** - Invite friends and earn
-- 🏆 **Leaderboard** - Compete for top spots
-- 🎯 **Achievements** - Unlock badges and rewards
-- 👤 **Player Profiles** - Track your stats
-
-### Interactive Features
-- ⚡ **Animated Games** - Dice rolls and coin flips in real-time
-- 💳 **Quick Actions** - Balance buttons for deposit/withdraw
-- 🤖 **Dealer Bot** - Auto-accepts PvP challenges after 60 seconds
+- 👥 **Referral System** - Invite friends and earn commissions on their gambling volume similiar to the #Daily Bonus 
+- 🏆 **Leaderboard** - Compete for top spots to earn prizes and giveaways
+- 🎯 **Achievements** - Unlock badges, rewards/prizes and compete with others to see who can get the highest level
+- 👤 **Player Profiles** - Track your stats, desposit/withdrawl logs and referal/daily bonus rewards
 
 ## 📁 File Structure
 
@@ -69,13 +63,13 @@ pip install -r requirements.txt
 
 **Option A: Environment Variable (Recommended)**
 ```bash
-export BOT_TOKEN="your_bot_token_here"
+export BOT_TOKEN="8218366688:AAHsYsgu_Y5VDzp_8Y1zJAdQVav-tiiB4cA"
 python main.py
 ```
 
 **Option B: Edit config.py**
 ```python
-BOT_TOKEN = "your_bot_token_here"
+BOT_TOKEN = "8218366688:AAHsYsgu_Y5VDzp_8Y1zJAdQVav-tiiB4cA"
 ```
 
 ### 4. Run the Bot
