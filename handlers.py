@@ -1,11 +1,430 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from database import db
 from games import DiceGame
 from utils import format_number
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /start and /help commands"""
+    user = update.effective_user
+    user_data = db.get_user(user.id)
+    user_data['username'] = user.username or user.first_name
+    
+    keyboard = [
+        [InlineKeyboardButton("💰 Balance", callback_data="action_full_stats")],
+        [InlineKeyboardButton("💳 Deposit", callback_data="action_deposit"),
+         InlineKeyboardButton("💸 Withdraw", callback_data="action_withdraw")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    welcome_msg = (
+        f"🎰 <b>Welcome to Antaria Casino, {user.first_name}!</b> 🎰\n\n"
+        "🎲 Your premier crypto casino on Telegram.\n\n"
+        "💰 <b>Getting Started:</b>\n"
+        "• /balance - Check your balance\n"
+        "• /deposit - Add funds\n"
+        "• /bonus - Get daily bonus\n\n"
+        "🎮 <b>Available Games:</b>\n"
+        "🎲 /dice - Dice game (PvP enabled)\n"
+        "🪙 /coinflip - Coin flip game\n\n"
+        "📊 <b>Profile & Stats:</b>\n"
+        "👤 /profile - Your profile\n"
+        "🏆 /achievements - Your achievements\n"
+        "👥 /referral - Referral program\n"
+        "📊 /leaderboard - Top players\n"
+        "📈 /stats - Global stats\n\n"
+        "🎁 Features: Smart Bonus System, Achievements, Referrals\n\n"
+        "Good luck! 🍀"
+    )
+    
+    await update.message.reply_text(welcome_msg, parse_mode='HTML', reply_markup=reply_markup)
+
+
+async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /deposit command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    address = user_data.get('ltc_address', f"LTC_{user_id}_DEMO")
+    
+    msg = (
+        f"💳 <b>Deposit Litecoin</b>\n\n"
+        f"Send LTC to this address:\n"
+        f"<code>{address}</code>\n\n"
+        f"📊 Current rate: $77.00 per LTC\n"
+        f"💵 Fee: 1%\n\n"
+        f"After sending, confirm with:\n"
+        f"/confirm [transaction_id]\n\n"
+        f"Example: /confirm abc123\n\n"
+        f"⏱ Confirmation takes ~5 seconds (demo mode)."
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def confirm_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /confirm [txid] command"""
+    user_id = update.effective_user.id
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Please provide transaction ID:\n\n"
+            "/confirm [txid]\n\n"
+            "Example: /confirm abc123"
+        )
+        return
+    
+    txid = context.args[0]
+    
+    import random
+    ltc_amount = random.uniform(0.1, 1.0)
+    usd_amount = ltc_amount * 77.0
+    fee = usd_amount * 0.01
+    final_amount = usd_amount - fee
+    
+    await update.message.reply_text(
+        f"⏳ Deposit pending confirmation...\n"
+        f"Amount: ${usd_amount:.2f} ({ltc_amount:.3f} LTC)\n"
+        f"Fee: ${fee:.2f}\n"
+        f"You'll receive: ${final_amount:.2f}\n\n"
+        f"Please wait ~5 seconds..."
+    )
+    
+    await asyncio.sleep(5)
+    
+    user_data = db.get_user(user_id)
+    user_data['balance'] += final_amount
+    
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=(
+            f"✅ <b>Deposit Confirmed!</b>\n\n"
+            f"💰 Received: ${final_amount:.2f}\n"
+            f"💳 Balance: ${format_number(user_data['balance'])}\n\n"
+            f"Ready to play! Try /dice to start."
+        ),
+        parse_mode='HTML'
+    )
+
+
+async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /balance command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    keyboard = [
+        [InlineKeyboardButton("📊 Full Stats", callback_data="action_full_stats")],
+        [InlineKeyboardButton("💳 Deposit", callback_data="action_deposit"),
+         InlineKeyboardButton("💸 Withdraw", callback_data="action_withdraw")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    rtp = 0.0
+    if user_data['total_wagered'] > 0:
+        rtp = (user_data['total_won'] / user_data['total_wagered']) * 100
+    
+    msg = (
+        f"💰 <b>Your Balance</b>\n\n"
+        f"💵 ${format_number(user_data['balance'])}\n"
+        f"🎮 Games played: {user_data['games_played']}\n"
+        f"💸 Total wagered: ${format_number(user_data['total_wagered'])}\n"
+        f"🏆 Total won: ${format_number(user_data['total_won'])}\n"
+        f"📊 RTP: {rtp:.1f}%\n\n"
+        f"Use the buttons below for more options."
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
+
+
+async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /withdraw [amount] command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    if not context.args:
+        await update.message.reply_text("❌ Usage: /withdraw [amount]\n\nExample: /withdraw 50")
+        return
+    
+    try:
+        amount = float(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid amount. Use numbers only.")
+        return
+    
+    if amount <= 0:
+        await update.message.reply_text("❌ Amount must be greater than 0.")
+        return
+    
+    playthrough_remaining = max(0, user_data.get('playthrough_required', 0) - user_data.get('bonus_wagered', 0))
+    
+    if playthrough_remaining > 0:
+        await update.message.reply_text(
+            f"❌ You must complete playthrough requirements first.\n\n"
+            f"Remaining: ${playthrough_remaining:.2f}\n\n"
+            f"Play more games to unlock withdrawals!"
+        )
+        return
+    
+    if amount > user_data['balance']:
+        await update.message.reply_text(
+            f"❌ Insufficient balance.\n💰 Available: ${format_number(user_data['balance'])}"
+        )
+        return
+    
+    fee = amount * 0.01
+    final_usd = amount - fee
+    ltc_amount = final_usd / 77.0
+    
+    user_data['balance'] -= amount
+    
+    msg = (
+        f"✅ <b>Withdrawal Processed</b>\n\n"
+        f"💸 Amount: ${amount:.2f}\n"
+        f"💵 Fee: ${fee:.2f}\n"
+        f"💰 Sent: ~{ltc_amount:.4f} LTC\n"
+        f"📍 To: {user_data.get('ltc_address', 'Your LTC Address')}\n\n"
+        f"💳 Remaining balance: ${format_number(user_data['balance'])}"
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /bonus command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    now = datetime.now()
+    last_bonus = user_data.get('last_bonus')
+    
+    if last_bonus:
+        if isinstance(last_bonus, str):
+            try:
+                last_bonus = datetime.fromisoformat(last_bonus)
+            except:
+                last_bonus = None
+    
+    if last_bonus and (now - last_bonus).total_seconds() < 86400:
+        next_bonus = last_bonus + timedelta(days=1)
+        hours_left = int((next_bonus - now).total_seconds() / 3600)
+        await update.message.reply_text(
+            f"⏰ Daily bonus already claimed!\n"
+            f"Come back in {hours_left} hours."
+        )
+        return
+    
+    if last_bonus and (now - last_bonus).days == 1:
+        user_data['bonus_streak'] = user_data.get('bonus_streak', 0) + 1
+    else:
+        user_data['bonus_streak'] = 1
+    
+    user_data['last_bonus'] = now.isoformat()
+    
+    import random
+    bonus_amount = random.uniform(10, 100)
+    user_data['balance'] += bonus_amount
+    
+    user_data['playthrough_required'] = user_data.get('playthrough_required', 0) + bonus_amount * 3
+    user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0)
+    
+    msg = f"🎁 <b>Daily Bonus!</b>\n\n"
+    msg += f"💰 You received: ${bonus_amount:.2f}\n"
+    msg += f"💳 Balance: ${format_number(user_data['balance'])}\n"
+    msg += f"🔥 Streak: {user_data.get('bonus_streak', 1)} days\n\n"
+    
+    if user_data.get('bonus_streak', 0) >= 5:
+        streak_bonus = 200
+        user_data['balance'] += streak_bonus
+        msg += f"🎉 5-day streak bonus: ${streak_bonus}!\n"
+        user_data['bonus_streak'] = 0
+    
+    msg += "\n🍀 Come back tomorrow!"
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /profile command"""
+    user_id = update.effective_user.id
+    user = update.effective_user
+    user_data = db.get_user(user_id)
+    
+    rtp = 0.0
+    if user_data['total_wagered'] > 0:
+        rtp = (user_data['total_won'] / user_data['total_wagered']) * 100
+    
+    playthrough_remaining = max(0, user_data.get('playthrough_required', 0) - user_data.get('bonus_wagered', 0))
+    
+    msg = (
+        f"👤 <b>Profile: {user.first_name}</b>\n\n"
+        f"💰 Balance: ${format_number(user_data['balance'])}\n"
+        f"🎮 Games played: {user_data['games_played']}\n"
+        f"💸 Total wagered: ${format_number(user_data['total_wagered'])}\n"
+        f"🏆 Total won: ${format_number(user_data['total_won'])}\n"
+        f"📊 RTP: {rtp:.1f}%\n"
+        f"🔥 Win streak: {user_data.get('win_streak', 0)}\n"
+        f"📈 Best streak: {user_data.get('max_win_streak', 0)}\n"
+        f"🎁 Bonus streak: {user_data.get('bonus_streak', 0)} days\n"
+    )
+    
+    if playthrough_remaining > 0:
+        msg += f"\n🎁 Playthrough remaining: ${playthrough_remaining:.2f}\n"
+    
+    msg += "\nUse /achievements to see your achievements!"
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def achievements_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /achievements command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    achievements = []
+    
+    if user_data['games_played'] >= 10:
+        achievements.append("🎮 Beginner - Played 10 games")
+    if user_data['games_played'] >= 100:
+        achievements.append("🎯 Veteran - Played 100 games")
+    if user_data['games_played'] >= 1000:
+        achievements.append("⭐ Legend - Played 1000 games")
+    
+    if user_data.get('max_win_streak', 0) >= 3:
+        achievements.append("🔥 Hot Streak - 3 wins in a row")
+    if user_data.get('max_win_streak', 0) >= 5:
+        achievements.append("💥 On Fire - 5 wins in a row")
+    if user_data.get('max_win_streak', 0) >= 10:
+        achievements.append("🌟 Unstoppable - 10 wins in a row")
+    
+    if user_data.get('bonus_streak', 0) >= 7:
+        achievements.append("📅 Weekly Warrior - 7 day bonus streak")
+    if user_data.get('bonus_streak', 0) >= 30:
+        achievements.append("🗓️ Monthly Master - 30 day bonus streak")
+    
+    if user_data['balance'] >= 1000:
+        achievements.append("💰 High Roller - $1,000+ balance")
+    if user_data['balance'] >= 10000:
+        achievements.append("💎 Whale - $10,000+ balance")
+    
+    msg = f"🏆 <b>Your Achievements</b>\n\n"
+    
+    if achievements:
+        for achievement in achievements:
+            msg += f"{achievement}\n"
+        msg += f"\n✨ Total: {len(achievements)} achievements unlocked!"
+    else:
+        msg += "No achievements yet. Keep playing to unlock them!"
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /referral command"""
+    user_id = update.effective_user.id
+    user_data = db.get_user(user_id)
+    
+    referrals = user_data.get('referrals', 0)
+    referral_earnings = user_data.get('referral_earnings', 0)
+    
+    bot_username = context.bot.username
+    referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+    
+    msg = (
+        f"👥 <b>Referral Program</b>\n\n"
+        f"🎁 Earn 10% of your referrals' deposits!\n\n"
+        f"📊 Your Stats:\n"
+        f"• Referrals: {referrals}\n"
+        f"• Earnings: ${format_number(referral_earnings)}\n\n"
+        f"🔗 Your referral link:\n"
+        f"<code>{referral_link}</code>\n\n"
+        f"Share this link with friends to start earning!"
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /leaderboard command"""
+    
+    all_users = [(uid, data) for uid, data in db.users.items()]
+    all_users.sort(key=lambda x: x[1]['balance'], reverse=True)
+    top_10 = all_users[:10]
+    
+    if not top_10:
+        await update.message.reply_text("🏆 Leaderboard is empty. Be the first to play!")
+        return
+    
+    msg = "🏆 <b>ANTARIA CASINO LEADERBOARD</b>\n\n"
+    msg += "Top 10 Players:\n\n"
+    
+    medals = ["🥇", "🥈", "🥉"]
+    
+    for idx, (user_id, user_data) in enumerate(top_10, 1):
+        medal = medals[idx-1] if idx <= 3 else f"{idx}."
+        username = user_data.get('username', 'Anonymous')
+        balance = user_data['balance']
+        msg += f"{medal} @{username}: ${format_number(balance)}\n"
+    
+    msg += "\n💰 Keep playing to reach the top!"
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /stats command - Show global stats"""
+    
+    total_users = len(db.users)
+    total_bets = db.global_stats.get('total_bets', 0)
+    total_wagered = db.global_stats.get('total_wagered', 0)
+    total_won = db.global_stats.get('total_won', 0)
+    
+    house_edge = 0.0
+    if total_wagered > 0:
+        house_edge = ((total_wagered - total_won) / total_wagered) * 100
+    
+    msg = (
+        f"📊 <b>Global Casino Stats</b>\n\n"
+        f"👥 Total players: {total_users}\n"
+        f"🎰 Total bets: {total_bets}\n"
+        f"💸 Total wagered: ${format_number(total_wagered)}\n"
+        f"🏆 Total won: ${format_number(total_won)}\n"
+        f"🏦 House edge: {house_edge:.1f}%\n\n"
+        f"🎮 Join the action with /dice or /coinflip!"
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /admin command - Admin panel (restricted)"""
+    user_id = update.effective_user.id
+    
+    ADMIN_IDS = [123456789]
+    
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You don't have permission to use this command.")
+        return
+    
+    total_users = len(db.users)
+    total_balance = sum(u['balance'] for u in db.users.values())
+    total_bets = db.global_stats.get('total_bets', 0)
+    total_wagered = db.global_stats.get('total_wagered', 0)
+    
+    msg = (
+        f"👑 <b>Admin Panel</b>\n\n"
+        f"📊 System Stats:\n"
+        f"• Total users: {total_users}\n"
+        f"• Total balance in system: ${format_number(total_balance)}\n"
+        f"• Total bets placed: {total_bets}\n"
+        f"• Total wagered: ${format_number(total_wagered)}\n\n"
+        f"⚙️ Database: {len(db.users)} users loaded\n"
+    )
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -16,7 +435,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     data = query.data
 
-    # Balance action buttons
     if data == "action_deposit":
         msg = (
             "💳 <b>Deposit Instructions</b>\n\n"
@@ -64,7 +482,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg, parse_mode='HTML')
         return
 
-    # Dice game mode selection
     if data == "dice_mode_bot":
         keyboard = [
             [InlineKeyboardButton(f"🎲 {i}", callback_data=f"dice_select_num_{i}") for i in range(1, 4)],
@@ -86,7 +503,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("dice_select_num_"):
         number = int(data.split("_")[-1])
 
-        # Store selected number in user context
         context.user_data['dice_selected_number'] = number
 
         keyboard = [
@@ -124,35 +540,29 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Deduct bet
         user_data['balance'] -= amount
         user_data['total_wagered'] += amount
         user_data['games_played'] += 1
 
-        # Track bonus playthrough
         if user_data.get('playthrough_required', 0) > 0:
             user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0) + amount
 
         db.global_stats['total_bets'] += 1
         db.global_stats['total_wagered'] += amount
 
-        # Show rolling animation
         await query.edit_message_text("🎲 Rolling the dice...")
 
-        # Animation
         for i in range(5):
             await asyncio.sleep(0.3)
             import random
             random_num = random.randint(1, 6)
             await query.edit_message_text(f"🎲 Rolling... {DiceGame.get_dice_emoji(random_num)}")
 
-        # Final result
         result = DiceGame.roll()
         result_emoji = DiceGame.get_dice_emoji(result)
 
         await asyncio.sleep(0.5)
 
-        # Calculate win
         payout = DiceGame.calculate_payout(number, result, amount)
         won = payout > 0
 
@@ -194,7 +604,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(result_msg, parse_mode='HTML', reply_markup=reply_markup)
         return
 
-    # Dice PvP challenge handling
     if data == "dice_mode_pvp":
         msg = (
             "👤 <b>Challenge a Player</b>\n\n"
@@ -258,10 +667,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Deduct target's bet
         user_data['balance'] -= amount
 
-        # Ask target to pick a number
         keyboard = [
             [InlineKeyboardButton(f"🎲 {i}", callback_data=f"dice_pvp_num_{challenge_id}_{i}") for i in range(1, 4)],
             [InlineKeyboardButton(f"🎲 {i}", callback_data=f"dice_pvp_num_{challenge_id}_{i}") for i in range(4, 7)]
@@ -284,7 +691,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         challenge = db.dice_challenges[challenge_id]
 
-        # Execute the PvP match
         await execute_pvp_dice_match(query, context, challenge_id, target_number)
         return
 
@@ -297,11 +703,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         challenge = db.dice_challenges[challenge_id]
 
-        # Refund challenger
         challenger_data = db.get_user(challenge['challenger_id'])
         challenger_data['balance'] += challenge['amount']
 
-        # Notify challenger
         try:
             await context.bot.send_message(
                 chat_id=challenge['challenger_id'],
@@ -325,7 +729,6 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
     amount = challenge['amount']
     challenger_number = challenge['challenger_number']
 
-    # Animated roll
     await query.edit_message_text("🎲 Rolling the dice...")
 
     for i in range(5):
@@ -334,13 +737,11 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
         random_num = random.randint(1, 6)
         await query.edit_message_text(f"🎲 Rolling... {DiceGame.get_dice_emoji(random_num)}")
 
-    # Final result
     result = DiceGame.roll()
     result_emoji = DiceGame.get_dice_emoji(result)
 
     await asyncio.sleep(0.5)
 
-    # Determine winner
     challenger_data = db.get_user(challenger_id)
     target_data = db.get_user(target_id)
 
@@ -348,26 +749,22 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
     target_won = target_number == result
 
     if challenger_won and not target_won:
-        # Challenger wins
         challenger_data['balance'] += amount * 2
         winner_msg = f"🎉 @{challenge['challenger_username']} WINS!"
         challenger_result = "🎉 YOU WIN!"
         target_result = "❌ You lost!"
     elif target_won and not challenger_won:
-        # Target wins
         target_data['balance'] += amount * 2
         winner_msg = f"🎉 @{challenge['target_username']} WINS!"
         challenger_result = "❌ You lost!"
         target_result = "🎉 YOU WIN!"
     else:
-        # Draw - refund both
         challenger_data['balance'] += amount
         target_data['balance'] += amount
         winner_msg = "🤝 IT'S A DRAW!"
         challenger_result = "🤝 Draw - bet refunded"
         target_result = "🤝 Draw - bet refunded"
 
-    # Results message
     result_msg = (
         f"🎲 <b>PVP DICE RESULT</b>\n\n"
         f"🎲 Roll: {result_emoji} ({result})\n\n"
@@ -377,13 +774,11 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
         f"💰 Prize: ${amount * 2:.2f}"
     )
 
-    # Send to target (current user)
     await query.edit_message_text(
         result_msg + f"\n\n{target_result}",
         parse_mode='HTML'
     )
 
-    # Send to challenger
     try:
         await context.bot.send_message(
             chat_id=challenger_id,
@@ -393,5 +788,4 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
     except:
         pass
 
-    # Remove challenge
     del db.dice_challenges[challenge_id]
