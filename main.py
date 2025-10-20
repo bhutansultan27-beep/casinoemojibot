@@ -55,26 +55,33 @@ async def start_dealer_bot(app):
 
 
 async def setup_commands(app):
-    """Setup bot commands menu"""
+    """Setup bot commands menu that appears in Telegram's command list"""
     commands = [
-        BotCommand("start", "🎰 Start the bot & get welcome bonus"),
-        BotCommand("help", "❓ Show help and commands"),
+        # Core Commands
+        BotCommand("start", "🎰 Start the bot & get $5 welcome bonus"),
+        BotCommand("help", "❓ Show help and all commands"),
+        
+        # Money Management
         BotCommand("balance", "💰 Check your balance"),
-        BotCommand("bonus", "🎁 Claim your daily bonus"),
         BotCommand("deposit", "💳 Deposit funds (LTC)"),
         BotCommand("withdraw", "💸 Withdraw your winnings"),
-        BotCommand("dice", "🎲 Play dice game (PvP available)"),
-        BotCommand("dice_challenge", "⚔️ Challenge another player"),
+        BotCommand("bonus", "🎁 Claim your earnings bonus (1% of wagered)"),
+        
+        # Games
+        BotCommand("dice", "🎲 Play dice game (PvP available!)"),
+        BotCommand("dice_challenge", "⚔️ Challenge another player to dice"),
         BotCommand("coinflip", "🪙 Play coin flip game"),
+        
+        # Profile & Social
         BotCommand("profile", "👤 View your profile & stats"),
         BotCommand("achievements", "🏆 View your achievements"),
-        BotCommand("leaderboard", "📊 View top players"),
-        BotCommand("stats", "📈 View global statistics"),
-        BotCommand("referral", "👥 Get your referral link"),
+        BotCommand("leaderboard", "📊 View top 10 players"),
+        BotCommand("referral", "👥 Get your referral link & earnings"),
+        BotCommand("stats", "📈 View global casino statistics"),
     ]
     
     await app.bot.set_my_commands(commands)
-    logger.info("✅ Bot commands menu set up")
+    logger.info("✅ Bot commands menu set up successfully")
 
 
 def main():
