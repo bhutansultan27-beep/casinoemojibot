@@ -9,6 +9,8 @@ Welcome to **Antaria Casino** - A Premium Gambling Expirience With New Updates A
   - Play vs Bot for instant action
   - Challenge other players for PvP battles
 - **🪙 CoinFlip** - Classic heads or tails with 2x payout
+    - Play vs Bot for instant action
+    - Challenge other players for PvP battles 
 
 ### Smart Bonus System
 - **First Bonus**: New players get $5 locked bonus
@@ -17,6 +19,7 @@ Welcome to **Antaria Casino** - A Premium Gambling Expirience With New Updates A
   - Resets on every withdrawal
   - Encourages active gameplay
   - No spam withdrawals possible
+  - the daily bonus must be played through before you can withdrawl
 
 ### Social Features
 - 👥 **Referral System** - Invite friends and earn commissions on their gambling volume similiar to the #Daily Bonus 
@@ -24,126 +27,63 @@ Welcome to **Antaria Casino** - A Premium Gambling Expirience With New Updates A
 - 🎯 **Achievements** - Unlock badges, rewards/prizes and compete with others to see who can get the highest level
 - 👤 **Player Profiles** - Track your stats, desposit/withdrawl logs and referal/daily bonus rewards
 
-## 📁 File Structure
-
-```
-antaria-casino/
-├── main.py                 # Entry point
-├── handlers.py             # Core commands (balance, bonus, etc.)
-├── game_handlers.py        # Game logic (dice, coinflip)
-├── callback_handlers.py    # Button interactions
-├── games.py                # Game mechanics
-├── database.py             # Data management
-├── config.py               # Configuration
-├── utils.py                # Helper functions
-├── text_handler.py         # Text message handler
-└── casino_data.json        # Database (auto-generated)
-```
-
-## 🚀 Setup Instructions
-
-### 1. Prerequisites
-- Python 3.9+
-- Telegram Bot Token (get from @BotFather)
-
-### 2. Installation
-
-```bash
-# Clone or download the code
-cd antaria-casino
-
-# Install dependencies
-pip install python-telegram-bot==20.7
-
-# Or if you have a requirements.txt:
-pip install -r requirements.txt
-```
-
-### 3. Configuration
-
-**Option A: Environment Variable (Recommended)**
-```bash
-export BOT_TOKEN="8218366688:AAHsYsgu_Y5VDzp_8Y1zJAdQVav-tiiB4cA"
-python main.py
-```
-
-**Option B: Edit config.py**
-```python
-BOT_TOKEN = "8218366688:AAHsYsgu_Y5VDzp_8Y1zJAdQVav-tiiB4cA"
-```
-
-### 4. Run the Bot
-```bash
-python main.py
-```
-
-You should see:
-```
-🎰 Antaria Casino Bot Starting...
-==================================================
-✅ Bot initialized successfully!
-🎮 Available games: Dice (PvP enabled), CoinFlip
-🎁 Features: Smart Bonus System, Achievements, Referrals, Leaderboard
-🤖 Dealer Bot: Active
-==================================================
-🚀 Antaria Casino is now running...
-```
-
 ## 🎮 How to Play
 
 ### Basic Commands
 - `/start` - Welcome message & overview
 - `/help` - Same as /start
-- `/balance` - Check your balance (with action buttons)
+- `/balance` - Check your balance , + deposit / withdrawl with buttons
 - `/bonus` - Claim your daily bonus
-- `/profile` - View your stats
-- `/deposit` - Get LTC deposit address
-- `/withdraw [amount]` - Cash out (must complete playthrough)
+- `/stats` - View your stats
+- `/leaderboard` view the top players current balances + total volume 
+- `/achievements` view your achievements
+- `/rp` view your respect (a level based on your total amount gambled and total achievements and time in the group) 
+- `/referral` find your referral link, and claim referral rewards
+
+
 
 ### Game Commands
 
 **Dice Game**
 ```
-/dice                    # Show game menu
-/dice 10 5               # Quick play: Bet $10 on number 5
-/dice_challenge @user 20 3   # Challenge @user with $20 bet on number 3
-```
-
+/dice (wager amount) @player (if no player is @ then match them with the bot                   # Show game menu
+dont ask for confirmation 
 **CoinFlip**
 ```
-/coinflip 10 heads       # Bet $10 on heads
-/coinflip 25 tails       # Bet $25 on tails
-```
+/coinflip 10 heads (if another player is pinged the bot will ask them if they want to take the opposite bet againt the first player)       # Bet $10 on heads
+dont ask for confirmation 
 
 ### Social Commands
-- `/leaderboard` - Top 10 players
-- `/referral` - Get your referral link
-- `/achievements` - View unlocked badges
-- `/stats` - Global casino statistics
+- `/leaderboard` - multiple pages with every user on it with 10 people on each page 
+the bot will have buttons asking the user if they want to go down a page, or up a page, and a button that they can click which will allow them to look at any page number that they type out
 
-### Admin Commands (if you're an admin)
-```
-/admin stats             # View admin statistics
-/admin give [user_id] [amount]   # Give money to user
-/admin jackpot [amount]  # Set jackpot pool
-/admin save              # Manual save
-/admin backup            # Create backup
-```
+the stats on leaderboard will just be the accounts total amount wagered
+
+
+- `/referral` - Get your referral link and view + claim your referral rewards 
+- `/achievements` - View unlocked badges, and all the different achievements with checkmarks and x next to the ones youve completed and havent
+
+- `/stats` - personal stats
+users first wager
+users total pnl
+users total amount wagered
+users winrate
+users total games played
+useres current level 
+
 
 ## 🎲 Game Rules
 
 ### Dice Game
-- **Choose a number**: 1-6
-- **Win condition**: Match the roll
-- **Payout**: 5x your bet
-- **House edge**: ~3%
+- **Win condition**: highest roll wins
+- **Payout**: 2x your bet
+- **House edge**: ~4%
 
 **PvP Mode**:
 1. Challenge another player
-2. Both pick numbers
+2. highest number wins
 3. Roll the dice
-4. First to match wins double the bet
-5. Draw = both refunded
+4. Draw = both refunded
 
 ### CoinFlip
 - **Choose**: Heads or Tails
@@ -177,51 +117,20 @@ New player:
 Experienced player:
 - Total wagered: $50,000
 - Claim bonus: +$500 (1%)
-- Can withdraw immediately (no playthrough)
+- playthrough needed on this as well
 - After withdrawal, wagered counter resets
 ```
 
 ## 🎯 Achievements
 
 Unlock special badges by completing challenges:
-- 🎲 First Bet - Place your first bet
-- 💰 High Roller - Bet over $100
+- 🎲 First Bet - Place your first bet 
+- 💰 High Roller - Bet over $100 
 - 🔥 Win Streak - Win 5 games in a row
 - 🎰 Jackpot - Win the jackpot
 - 👥 Referrer - Refer 10 friends
 - 📈 Leveled Up - Reach level 10
 
-## 🔧 Configuration Options
-
-Edit `config.py` to customize:
-
-```python
-# Bot Token
-BOT_TOKEN = "your_token"
-
-# Admin user IDs (can use admin commands)
-ADMIN_IDS = [your_telegram_id]
-
-# Crypto rates
-LTC_RATE = 75.00  # USD per LTC
-
-# Fees
-DEPOSIT_FEE = 0.02    # 2%
-WITHDRAWAL_FEE = 0.03  # 3%
-
-# Bonus settings
-DAILY_BONUS_MIN = 5.0
-DAILY_BONUS_MAX = 20.0
-BONUS_COOLDOWN = 86400  # 24 hours
-
-# Streak bonus
-STREAK_BONUS_DAYS = 7
-STREAK_BONUS_AMOUNT = 50.0
-
-# Referral rewards
-REFERRAL_BONUS = 25.0   # Referrer gets
-REFEREE_BONUS = 10.0     # New user gets
-```
 
 ## 🛡️ Security Features
 
@@ -234,7 +143,7 @@ REFEREE_BONUS = 10.0     # New user gets
 
 ## 📊 Database
 
-The bot uses JSON for data storage (`casino_data.json`):
+The bot uses JSON for data storage 
 - Automatically created on first run
 - Auto-saves every 5 minutes
 - Manual backups via `/admin backup`
