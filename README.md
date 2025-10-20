@@ -370,7 +370,7 @@ MIT License - Feel free to use and modify!
 pip install python-telegram-bot==20.7
 
 # 3. Set token
-export BOT_TOKEN="your_token_here"
+export BOT_TOKEN="8218366688:AAHsYsgu_Y5VDzp_8Y1zJAdQVav-tiiB4cA"
 
 # 4. Run
 python main.py
