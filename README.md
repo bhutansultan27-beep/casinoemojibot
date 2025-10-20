@@ -1,6 +1,6 @@
 # 🎰 Antaria Casino Bot
 
-Welcome to **Antaria Casino** - Your premium Telegram crypto casino experience!
+Welcome to **Antaria Casino** - A Premium Gambling Expirience With New Updates And Events Weekly!
 
 ## 🎮 Features
 
