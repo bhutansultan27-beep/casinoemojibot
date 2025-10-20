@@ -534,18 +534,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.global_stats['total_bets'] += 1
         db.global_stats['total_wagered'] += amount
 
-        await query.edit_message_text("🎲 Rolling the dice...")
+        await query.edit_message_text(f"🎲 Rolling for ${amount:.2f}...\n🎯 You picked: {number}")
 
-        for i in range(5):
-            await asyncio.sleep(0.3)
-            import random
-            random_num = random.randint(1, 6)
-            await query.edit_message_text(f"🎲 Rolling... {DiceGame.get_dice_emoji(random_num)}")
+        dice_message = await context.bot.send_dice(chat_id=user_id, emoji="🎲")
+        result = dice_message.dice.value
 
-        result = DiceGame.roll()
-        result_emoji = DiceGame.get_dice_emoji(result)
-
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(4)
 
         payout = DiceGame.calculate_payout(number, result, amount)
         won = payout > 0
@@ -561,11 +555,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             result_msg = (
                 f"🎉 <b>YOU WIN!</b>\n\n"
-                f"🎲 Result: {result_emoji} ({result})\n"
-                f"🎯 You predicted: {number}\n\n"
+                f"🎲 Dice rolled: <b>{result}</b>\n"
+                f"🎯 You predicted: <b>{number}</b>\n\n"
                 f"💰 Bet: ${amount:.2f}\n"
                 f"🏆 Won: ${payout:.2f}\n"
-                f"💳 Balance: ${format_number(user_data['balance'])}\n"
+                f"💳 New Balance: ${format_number(user_data['balance'])}\n"
                 f"🔥 Win streak: {user_data['win_streak']}"
             )
         else:
@@ -573,8 +567,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             result_msg = (
                 f"❌ <b>Better luck next time!</b>\n\n"
-                f"🎲 Result: {result_emoji} ({result})\n"
-                f"🎯 You predicted: {number}\n\n"
+                f"🎲 Dice rolled: <b>{result}</b>\n"
+                f"🎯 You predicted: <b>{number}</b>\n\n"
                 f"💰 Bet: ${amount:.2f}\n"
                 f"💳 Balance: ${format_number(user_data['balance'])}"
             )
@@ -713,18 +707,19 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
     amount = challenge['amount']
     challenger_number = challenge['challenger_number']
 
-    await query.edit_message_text("🎲 Rolling the dice...")
+    await query.edit_message_text(
+        f"⚔️ <b>PvP Dice Battle!</b>\n\n"
+        f"🎯 @{challenge['challenger_username']} picked: {challenger_number}\n"
+        f"🎯 @{challenge['target_username']} picked: {target_number}\n\n"
+        f"💰 Prize Pool: ${amount * 2:.2f}\n\n"
+        f"🎲 Rolling...",
+        parse_mode='HTML'
+    )
 
-    for i in range(5):
-        await asyncio.sleep(0.3)
-        import random
-        random_num = random.randint(1, 6)
-        await query.edit_message_text(f"🎲 Rolling... {DiceGame.get_dice_emoji(random_num)}")
+    dice_message = await context.bot.send_dice(chat_id=target_id, emoji="🎲")
+    result = dice_message.dice.value
 
-    result = DiceGame.roll()
-    result_emoji = DiceGame.get_dice_emoji(result)
-
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(4)
 
     challenger_data = db.get_user(challenger_id)
     target_data = db.get_user(target_id)
@@ -751,7 +746,7 @@ async def execute_pvp_dice_match(query, context, challenge_id, target_number):
 
     result_msg = (
         f"🎲 <b>PVP DICE RESULT</b>\n\n"
-        f"🎲 Roll: {result_emoji} ({result})\n\n"
+        f"🎲 Dice rolled: <b>{result}</b>\n\n"
         f"🎯 @{challenge['challenger_username']}: {challenger_number}\n"
         f"🎯 @{challenge['target_username']}: {target_number}\n\n"
         f"{winner_msg}\n"
