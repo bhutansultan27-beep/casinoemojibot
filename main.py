@@ -83,6 +83,10 @@ async def setup_commands(app):
     await app.bot.set_my_commands(commands)
     logger.info("✅ Bot commands menu set up successfully")
 
+    
+    await app.bot.set_my_commands(commands)
+    logger.info("✅ Bot commands menu set up successfully")
+
 
 def main():
     if not BOT_TOKEN:
