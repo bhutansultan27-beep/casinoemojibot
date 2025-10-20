@@ -7,7 +7,6 @@ from config import BOT_TOKEN
 from database import db
 from handlers import (
     start, 
-    deposit, 
     confirm_deposit, 
     balance, 
     withdraw, 
@@ -69,7 +68,6 @@ def main():
     # Core commands
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
-    application.add_handler(CommandHandler("deposit", deposit))
     application.add_handler(CommandHandler("confirm", confirm_deposit))
     application.add_handler(CommandHandler("balance", balance))
     application.add_handler(CommandHandler("withdraw", withdraw))

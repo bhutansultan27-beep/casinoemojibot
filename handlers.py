@@ -14,34 +14,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = db.get_user(user.id)
     user_data['username'] = user.username or user.first_name
     
-    keyboard = [
-        [InlineKeyboardButton("💰 Balance", callback_data="action_full_stats")],
-        [InlineKeyboardButton("💳 Deposit", callback_data="action_deposit"),
-         InlineKeyboardButton("💸 Withdraw", callback_data="action_withdraw")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    if not user_data.get('first_bonus_claimed', False):
+        user_data['balance'] += 5.0
+        user_data['playthrough_required'] = 5.0
+        user_data['bonus_wagered'] = 0
+        user_data['first_bonus_claimed'] = True
+        
+        welcome_msg = (
+            f"🎰 <b>Welcome to Antaria Casino, {user.first_name}!</b> 🎰\n\n"
+            "🎁 <b>First Time Bonus: $5.00!</b>\n"
+            "⚠️ You must play through the full $5 before withdrawing.\n\n"
+            "💰 <b>Getting Started:</b>\n"
+            "• /balance - Check your balance\n"
+            "• /bonus - Claim your earnings bonus\n\n"
+            "🎮 <b>Available Games:</b>\n"
+            "🎲 /dice - Dice game (PvP enabled)\n"
+            "🪙 /coinflip - Coin flip game\n\n"
+            "📊 <b>Other Commands:</b>\n"
+            "👤 /profile - Your profile\n"
+            "🏆 /achievements - Your achievements\n"
+            "📊 /leaderboard - Top players\n\n"
+            "Good luck! 🍀"
+        )
+    else:
+        welcome_msg = (
+            f"🎰 <b>Welcome back to Antaria Casino, {user.first_name}!</b> 🎰\n\n"
+            "💰 <b>Quick Commands:</b>\n"
+            "• /balance - Check your balance\n"
+            "• /bonus - Claim your earnings bonus\n\n"
+            "🎮 <b>Available Games:</b>\n"
+            "🎲 /dice - Dice game (PvP enabled)\n"
+            "🪙 /coinflip - Coin flip game\n\n"
+            "Good luck! 🍀"
+        )
     
-    welcome_msg = (
-        f"🎰 <b>Welcome to Antaria Casino, {user.first_name}!</b> 🎰\n\n"
-        "🎲 Your premier crypto casino on Telegram.\n\n"
-        "💰 <b>Getting Started:</b>\n"
-        "• /balance - Check your balance\n"
-        "• /deposit - Add funds\n"
-        "• /bonus - Get daily bonus\n\n"
-        "🎮 <b>Available Games:</b>\n"
-        "🎲 /dice - Dice game (PvP enabled)\n"
-        "🪙 /coinflip - Coin flip game\n\n"
-        "📊 <b>Profile & Stats:</b>\n"
-        "👤 /profile - Your profile\n"
-        "🏆 /achievements - Your achievements\n"
-        "👥 /referral - Referral program\n"
-        "📊 /leaderboard - Top players\n"
-        "📈 /stats - Global stats\n\n"
-        "🎁 Features: Smart Bonus System, Achievements, Referrals\n\n"
-        "Good luck! 🍀"
-    )
-    
-    await update.message.reply_text(welcome_msg, parse_mode='HTML', reply_markup=reply_markup)
+    await update.message.reply_text(welcome_msg, parse_mode='HTML')
 
 
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -117,25 +124,12 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = db.get_user(user_id)
     
     keyboard = [
-        [InlineKeyboardButton("📊 Full Stats", callback_data="action_full_stats")],
         [InlineKeyboardButton("💳 Deposit", callback_data="action_deposit"),
          InlineKeyboardButton("💸 Withdraw", callback_data="action_withdraw")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    rtp = 0.0
-    if user_data['total_wagered'] > 0:
-        rtp = (user_data['total_won'] / user_data['total_wagered']) * 100
-    
-    msg = (
-        f"💰 <b>Your Balance</b>\n\n"
-        f"💵 ${format_number(user_data['balance'])}\n"
-        f"🎮 Games played: {user_data['games_played']}\n"
-        f"💸 Total wagered: ${format_number(user_data['total_wagered'])}\n"
-        f"🏆 Total won: ${format_number(user_data['total_won'])}\n"
-        f"📊 RTP: {rtp:.1f}%\n\n"
-        f"Use the buttons below for more options."
-    )
+    msg = f"💰 ${format_number(user_data['balance'])}"
     
     await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
 
@@ -181,68 +175,57 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_data['balance'] -= amount
     
+    user_data['wagered_since_withdrawal'] = 0
+    user_data['last_withdrawal'] = datetime.now().isoformat()
+    
     msg = (
         f"✅ <b>Withdrawal Processed</b>\n\n"
         f"💸 Amount: ${amount:.2f}\n"
         f"💵 Fee: ${fee:.2f}\n"
         f"💰 Sent: ~{ltc_amount:.4f} LTC\n"
         f"📍 To: {user_data.get('ltc_address', 'Your LTC Address')}\n\n"
-        f"💳 Remaining balance: ${format_number(user_data['balance'])}"
+        f"💳 Remaining balance: ${format_number(user_data['balance'])}\n\n"
+        f"ℹ️ Your bonus tracker has been reset."
     )
     
     await update.message.reply_text(msg, parse_mode='HTML')
 
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /bonus command"""
+    """Handle /bonus command - 1% of total wagered since last withdrawal"""
     user_id = update.effective_user.id
     user_data = db.get_user(user_id)
     
-    now = datetime.now()
-    last_bonus = user_data.get('last_bonus')
+    wagered_since_withdrawal = user_data.get('wagered_since_withdrawal', 0)
     
-    if last_bonus:
-        if isinstance(last_bonus, str):
-            try:
-                last_bonus = datetime.fromisoformat(last_bonus)
-            except:
-                last_bonus = None
-    
-    if last_bonus and (now - last_bonus).total_seconds() < 86400:
-        next_bonus = last_bonus + timedelta(days=1)
-        hours_left = int((next_bonus - now).total_seconds() / 3600)
+    if wagered_since_withdrawal == 0:
         await update.message.reply_text(
-            f"⏰ Daily bonus already claimed!\n"
-            f"Come back in {hours_left} hours."
+            "❌ No wagering activity since your last withdrawal.\n\n"
+            "💡 Play some games to earn your bonus!"
         )
         return
     
-    if last_bonus and (now - last_bonus).days == 1:
-        user_data['bonus_streak'] = user_data.get('bonus_streak', 0) + 1
-    else:
-        user_data['bonus_streak'] = 1
+    bonus_amount = wagered_since_withdrawal * 0.01
     
-    user_data['last_bonus'] = now.isoformat()
+    if bonus_amount < 0.01:
+        await update.message.reply_text(
+            f"❌ Minimum bonus is $0.01\n\n"
+            f"💸 Wagered: ${wagered_since_withdrawal:.2f}\n"
+            f"📊 Your bonus: ${bonus_amount:.4f}\n\n"
+            f"Keep playing to earn more!"
+        )
+        return
     
-    import random
-    bonus_amount = random.uniform(10, 100)
     user_data['balance'] += bonus_amount
+    user_data['wagered_since_withdrawal'] = 0
     
-    user_data['playthrough_required'] = user_data.get('playthrough_required', 0) + bonus_amount * 3
-    user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0)
-    
-    msg = f"🎁 <b>Daily Bonus!</b>\n\n"
-    msg += f"💰 You received: ${bonus_amount:.2f}\n"
-    msg += f"💳 Balance: ${format_number(user_data['balance'])}\n"
-    msg += f"🔥 Streak: {user_data.get('bonus_streak', 1)} days\n\n"
-    
-    if user_data.get('bonus_streak', 0) >= 5:
-        streak_bonus = 200
-        user_data['balance'] += streak_bonus
-        msg += f"🎉 5-day streak bonus: ${streak_bonus}!\n"
-        user_data['bonus_streak'] = 0
-    
-    msg += "\n🍀 Come back tomorrow!"
+    msg = (
+        f"🎁 <b>Earnings Bonus Claimed!</b>\n\n"
+        f"💸 Total wagered: ${wagered_since_withdrawal:.2f}\n"
+        f"💰 Bonus (1%): ${bonus_amount:.2f}\n\n"
+        f"💳 New balance: ${format_number(user_data['balance'])}\n\n"
+        f"🎮 Keep playing to earn more bonuses!"
+    )
     
     await update.message.reply_text(msg, parse_mode='HTML')
 
@@ -543,6 +526,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data['balance'] -= amount
         user_data['total_wagered'] += amount
         user_data['games_played'] += 1
+        user_data['wagered_since_withdrawal'] = user_data.get('wagered_since_withdrawal', 0) + amount
 
         if user_data.get('playthrough_required', 0) > 0:
             user_data['bonus_wagered'] = user_data.get('bonus_wagered', 0) + amount
